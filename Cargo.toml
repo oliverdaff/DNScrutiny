@@ -1,0 +1,12 @@
+[package]
+name = "scrutiny"
+version = "0.1.0"
+authors = ["Oliver Daff <oliverdaff@users.noreply.github.com>"]
+edition = "2018"
+
+
+[dependencies]
+clap = "2.33"
+tokio = { version = "0.2", features = ["macros" ] }
+trust-dns-resolver="0.19"
+
