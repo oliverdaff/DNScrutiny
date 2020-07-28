@@ -9,5 +9,6 @@ edition = "2018"
 clap = "2.33"
 tokio = { version = "0.2", features = ["macros" ] }
 trust-dns-resolver="0.19" 
+trust-dns-proto="0.19" 
 futures = "0.3"
 stream_throttle = "0.3.1"

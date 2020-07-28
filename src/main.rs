@@ -6,6 +6,7 @@ use std::io::{prelude::*, BufReader};
 use std::path::Path;
 use std::time::Duration;
 use stream_throttle::{ThrottlePool, ThrottleRate, ThrottledStream};
+use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::*;
 use trust_dns_resolver::TokioAsyncResolver;
 
@@ -30,18 +31,38 @@ async fn main() {
                 .takes_value(true)
                 .validator(validate_subdomain_file),
         )
+        .arg(
+            Arg::with_name("RATE")
+                .short("r")
+                .long("rate")
+                .help("The number of queries per second to issue")
+                .required(false)
+                .default_value("100")
+                .validator(validate_rate),
+        )
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
     let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
+    let query_per_sec = command
+        .value_of("RATE")
+        .expect("rate expected")
+        .parse::<usize>()
+        .unwrap();
 
     let file = File::open(subdomains_file).expect("Could not open file");
     let reader = BufReader::new(file);
 
-    let rate = ThrottleRate::new(100, Duration::from_secs(1));
+    let rate = ThrottleRate::new(query_per_sec, Duration::from_secs(1));
     let pool = ThrottlePool::new(rate);
 
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
+    let resolver = TokioAsyncResolver::tokio(
+        ResolverConfig::default(),
+        ResolverOpts {
+            preserve_intermediates: true,
+            ..ResolverOpts::default()
+        },
+    );
 
     let res = resolver.await.expect("Failed to connect to resolver");
 
@@ -53,13 +74,34 @@ async fn main() {
                 .map_err(|e| format!("error: {}", e))
         })
         .filter(|x| future::ready(x.is_ok()))
-        .for_each(|x| {
-            if let Ok(r) = x {
-                println!("{:?}", r);
-            }
-            future::ready(())
+        .map(|x| x.unwrap())
+        .inspect(|x| {
+            println!("{:?}", x);
         });
-    stream.await;
+    let results = stream.collect::<Vec<_>>().await;
+
+    println!("*********************");
+    println!("Results");
+    println!("*********************");
+    for result in results {
+        for record in result.as_lookup().record_iter() {
+            println!(
+                "{}:{}:{}",
+                record.name().to_ascii(),
+                record.record_type(),
+                display_rdata(record.rdata())
+            );
+        }
+    }
+}
+
+fn display_rdata(rdata: &RData) -> String {
+    match rdata {
+        RData::A(ip) => format!("{}", ip),
+        RData::AAAA(ip) => format!("{}", ip),
+        RData::CNAME(name) => name.to_utf8(),
+        _ => format!("{:?}", rdata),
+    }
 }
 
 fn validate_subdomain_file(file: String) -> Result<(), String> {
@@ -67,5 +109,12 @@ fn validate_subdomain_file(file: String) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("File not fount: {}", file))
+    }
+}
+
+fn validate_rate(rate: String) -> Result<(), String> {
+    match rate.parse::<usize>() {
+        Err(_) => Err(format!("Rate must be a number")),
+        Ok(_) => Ok(()),
     }
 }
