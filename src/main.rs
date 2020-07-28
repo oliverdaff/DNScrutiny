@@ -111,7 +111,7 @@ fn validate_subdomain_file(file: String) -> Result<(), String> {
 
 fn validate_rate(rate: String) -> Result<(), String> {
     match rate.parse::<usize>() {
-        Err(_) => Err(format!("Rate must be a number")),
+        Err(_) => Err(format!("Rate must be a number {}", rate)),
         Ok(_) => Ok(()),
     }
 }
