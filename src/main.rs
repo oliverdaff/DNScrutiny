@@ -1,11 +1,9 @@
+mod brute;
+
 use clap::{App, Arg};
-use futures::prelude::*;
-use futures::stream;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
 use std::path::Path;
 use std::time::Duration;
-use stream_throttle::{ThrottlePool, ThrottleRate, ThrottledStream};
+use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::*;
 use trust_dns_resolver::TokioAsyncResolver;
@@ -26,7 +24,7 @@ async fn main() {
             Arg::with_name("SUBDOMAINS")
                 .short("s")
                 .long("subdomains")
-                .help("The subdomains to enumerate")
+                .help("The subdomains file to enumerate")
                 .required(true)
                 .takes_value(true)
                 .validator(validate_subdomain_file),
@@ -50,9 +48,6 @@ async fn main() {
         .parse::<usize>()
         .unwrap();
 
-    let file = File::open(subdomains_file).expect("Could not open file");
-    let reader = BufReader::new(file);
-
     let rate = ThrottleRate::new(query_per_sec, Duration::from_secs(1));
     let pool = ThrottlePool::new(rate);
 
@@ -66,29 +61,18 @@ async fn main() {
 
     let res = resolver.await.expect("Failed to connect to resolver");
 
-    let stream = stream::iter(reader.lines())
-        .throttle(pool)
-        .map_err(|e| format!("error {}", e))
-        .and_then(|prefix| {
-            res.lookup_ip(format!("{}.{}", prefix, domain))
-                .map_err(|e| format!("error: {}", e))
-        })
-        .filter(|x| future::ready(x.is_ok()))
-        .map(|x| x.unwrap());
-    let results = stream.collect::<Vec<_>>().await;
+    let records = brute::brute_force_domain(domain, subdomains_file, pool, &res);
 
     println!("*********************");
     println!("Results");
     println!("*********************");
-    for result in results {
-        for record in result.as_lookup().record_iter() {
-            println!(
-                "{}:{}:{}",
-                record.name().to_ascii(),
-                record.record_type(),
-                display_rdata(record.rdata())
-            );
-        }
+    for record in records.await {
+        println!(
+            "{}:{}:{}",
+            record.name().to_ascii(),
+            record.record_type(),
+            display_rdata(record.rdata())
+        );
     }
 }
 
