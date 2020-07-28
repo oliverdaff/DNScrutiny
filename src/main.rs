@@ -74,10 +74,7 @@ async fn main() {
                 .map_err(|e| format!("error: {}", e))
         })
         .filter(|x| future::ready(x.is_ok()))
-        .map(|x| x.unwrap())
-        .inspect(|x| {
-            println!("{:?}", x);
-        });
+        .map(|x| x.unwrap());
     let results = stream.collect::<Vec<_>>().await;
 
     println!("*********************");
