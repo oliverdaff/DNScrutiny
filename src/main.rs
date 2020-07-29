@@ -52,18 +52,22 @@ async fn main() {
         )
         .arg(
             Arg::with_name("NAME_SERVER_PORT")
-            .short("p")
-            .long("name-server-port")
-            .help("The port to use for the name server")
-            .required(false)
-            .default_value("53")
-            .validator(validate_name_server_port)
+                .short("p")
+                .long("name-server-port")
+                .help("The port to use for the name server")
+                .required(false)
+                .default_value("53")
+                .validator(validate_name_server_port),
         )
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
     let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
-    let name_server_port = command.value_of("NAME_SERVER_PORT").expect("Port expected").parse::<u16>().expect("Port expected to be a number");
+    let name_server_port = command
+        .value_of("NAME_SERVER_PORT")
+        .expect("Port expected")
+        .parse::<u16>()
+        .expect("Port expected to be a number");
 
     let query_per_sec = command
         .value_of("RATE")
@@ -145,5 +149,7 @@ fn validate_rate(rate: String) -> Result<(), String> {
 }
 
 fn validate_name_server_port(port: String) -> Result<(), String> {
-    port.parse::<u16>().map(|_|()).map_err(|_| format!("Invalid name server port: {}", port))
+    port.parse::<u16>()
+        .map(|_| ())
+        .map_err(|_| format!("Invalid name server port: {}", port))
 }
