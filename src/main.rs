@@ -50,10 +50,21 @@ async fn main() {
                 .value_delimiter(",")
                 .validator(validate_name_servers),
         )
+        .arg(
+            Arg::with_name("NAME_SERVER_PORT")
+            .short("p")
+            .long("name-server-port")
+            .help("The port to use for the name server")
+            .required(false)
+            .default_value("53")
+            .validator(validate_name_server_port)
+        )
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
     let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
+    let name_server_port = command.value_of("NAME_SERVER_PORT").expect("Port expected").parse::<u16>().expect("Port expected to be a number");
+
     let query_per_sec = command
         .value_of("RATE")
         .expect("rate expected")
@@ -72,7 +83,7 @@ async fn main() {
                     vec![],
                     NameServerConfigGroup::from_ips_clear(
                         &ips.map(|x| x.parse().unwrap()).collect::<Vec<IpAddr>>(),
-                        52,
+                        name_server_port,
                     ),
                 )
             });
@@ -131,4 +142,8 @@ fn validate_rate(rate: String) -> Result<(), String> {
         Err(_) => Err(format!("Rate must be a number {}", rate)),
         Ok(_) => Ok(()),
     }
+}
+
+fn validate_name_server_port(port: String) -> Result<(), String> {
+    port.parse::<u16>().map(|_|()).map_err(|_| format!("Invalid name server port: {}", port))
 }
