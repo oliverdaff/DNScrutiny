@@ -1,6 +1,6 @@
 mod brute;
 
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
 use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
@@ -38,6 +38,7 @@ async fn main() {
                 .help("The number of queries per second to issue")
                 .required(false)
                 .default_value("100")
+                .takes_value(true)
                 .validator(validate_rate),
         )
         .arg(
@@ -45,6 +46,7 @@ async fn main() {
                 .short("n")
                 .long("names-servers")
                 .help("A comma-separated list of name servers to use")
+                .takes_value(true)
                 .required(false)
                 .multiple(true)
                 .value_delimiter(",")
@@ -57,17 +59,34 @@ async fn main() {
                 .help("The port to use for the name server")
                 .required(false)
                 .default_value("53")
-                .validator(validate_name_server_port),
+                .validator(validate_name_server_port)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("GOGGLE_NS")
+                .long("google-ns")
+                .help("Use the google name servers")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("QUAD9_NS")
+                .long("quad9-ns")
+                .help("Use the quad9 name servers")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("CLOUDFLARE_NS")
+                .long("cloudflare-ns")
+                .help("Use the cloudflare name servers")
+                .required(false)
+                .takes_value(false),
         )
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
     let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
-    let name_server_port = command
-        .value_of("NAME_SERVER_PORT")
-        .expect("Port expected")
-        .parse::<u16>()
-        .expect("Port expected to be a number");
 
     let query_per_sec = command
         .value_of("RATE")
@@ -78,19 +97,7 @@ async fn main() {
     let rate = ThrottleRate::new(query_per_sec, Duration::from_secs(1));
     let pool = ThrottlePool::new(rate);
 
-    let resolver_config =
-        command
-            .values_of("NAMES_SERVERS")
-            .map_or(ResolverConfig::default(), |ips| {
-                ResolverConfig::from_parts(
-                    None,
-                    vec![],
-                    NameServerConfigGroup::from_ips_clear(
-                        &ips.map(|x| x.parse().unwrap()).collect::<Vec<IpAddr>>(),
-                        name_server_port,
-                    ),
-                )
-            });
+    let resolver_config = ResolverConfig::from_parts(None, vec![], fetch_resolve_config(&command));
 
     let resolver = TokioAsyncResolver::tokio(
         resolver_config,
@@ -152,4 +159,39 @@ fn validate_name_server_port(port: String) -> Result<(), String> {
     port.parse::<u16>()
         .map(|_| ())
         .map_err(|_| format!("Invalid name server port: {}", port))
+}
+
+fn fetch_resolve_config(command: &ArgMatches) -> NameServerConfigGroup {
+    let mut config = NameServerConfigGroup::new();
+    if command.is_present("GOGGLE_NS") {
+        NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::google())
+    }
+    if command.is_present("CLOUDFLARE_NS") {
+        NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::cloudflare())
+    }
+    if command.is_present("QUAD9_NS") {
+        NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::quad9())
+    }
+    if let Some(nameservers) = command.values_of("NAMES_SERVERS") {
+        let name_server_port = command
+            .value_of("NAME_SERVER_PORT")
+            .expect("Port expected")
+            .parse::<u16>()
+            .expect("Port expected to be a number");
+        let ns_config = NameServerConfigGroup::from_ips_clear(
+            &nameservers
+                .map(|x| x.parse().unwrap())
+                .collect::<Vec<IpAddr>>(),
+            name_server_port,
+        );
+        NameServerConfigGroup::merge(&mut config, ns_config)
+    }
+    if !command.is_present("GOGGLE_NS")
+        && !command.is_present("CLOUDFLARE_NS")
+        && !command.is_present("QUAD9_NS")
+        && !command.is_present("NAMES_SERVERS")
+    {
+        NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::google())
+    }
+    config
 }
