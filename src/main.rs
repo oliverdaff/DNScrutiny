@@ -1,10 +1,12 @@
 mod brute;
 
 use clap::{App, Arg};
+use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
 use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_proto::rr::record_data::RData;
+use trust_dns_resolver::config::NameServerConfigGroup;
 use trust_dns_resolver::config::*;
 use trust_dns_resolver::TokioAsyncResolver;
 
@@ -38,6 +40,16 @@ async fn main() {
                 .default_value("100")
                 .validator(validate_rate),
         )
+        .arg(
+            Arg::with_name("NAMES_SERVERS")
+                .short("n")
+                .long("names-servers")
+                .help("A comma-separated list of name servers to use")
+                .required(false)
+                .multiple(true)
+                .value_delimiter(",")
+                .validator(validate_name_servers),
+        )
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
@@ -51,8 +63,22 @@ async fn main() {
     let rate = ThrottleRate::new(query_per_sec, Duration::from_secs(1));
     let pool = ThrottlePool::new(rate);
 
+    let resolver_config =
+        command
+            .values_of("NAMES_SERVERS")
+            .map_or(ResolverConfig::default(), |ips| {
+                ResolverConfig::from_parts(
+                    None,
+                    vec![],
+                    NameServerConfigGroup::from_ips_clear(
+                        &ips.map(|x| x.parse().unwrap()).collect::<Vec<IpAddr>>(),
+                        52,
+                    ),
+                )
+            });
+
     let resolver = TokioAsyncResolver::tokio(
-        ResolverConfig::default(),
+        resolver_config,
         ResolverOpts {
             preserve_intermediates: true,
             ..ResolverOpts::default()
@@ -83,6 +109,13 @@ fn display_rdata(rdata: &RData) -> String {
         RData::CNAME(name) => name.to_utf8(),
         _ => format!("{:?}", rdata),
     }
+}
+
+fn validate_name_servers(name_server: String) -> Result<(), String> {
+    name_server
+        .parse::<IpAddr>()
+        .map(|_| ())
+        .map_err(|_| format!("Invalid IP address {}", name_server))
 }
 
 fn validate_subdomain_file(file: String) -> Result<(), String> {
