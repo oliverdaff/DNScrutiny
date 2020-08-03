@@ -1,6 +1,9 @@
 mod brute;
+mod transfer;
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, Values};
+use futures::prelude::*;
+use futures::stream;
 use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
@@ -8,7 +11,8 @@ use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::NameServerConfigGroup;
 use trust_dns_resolver::config::*;
-use trust_dns_resolver::TokioAsyncResolver;
+use trust_dns_resolver::error::ResolveError;
+use trust_dns_resolver::{AsyncResolver, TokioAsyncResolver};
 
 #[tokio::main]
 async fn main() {
@@ -23,13 +27,21 @@ async fn main() {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("TRANSFER")
+                .long("axfr")
+                .help("Perform a domain transfer request.")
+                .required(false)
+                .takes_value(false),
+        )
+        .arg(
             Arg::with_name("SUBDOMAINS")
                 .short("s")
                 .long("subdomains")
                 .help("The subdomains file to enumerate")
-                .required(true)
+                .required(false)
                 .takes_value(true)
-                .validator(validate_subdomain_file),
+                .validator(validate_subdomain_file)
+                .conflicts_with_all(&["TRANSFER"]),
         )
         .arg(
             Arg::with_name("RATE")
@@ -49,8 +61,7 @@ async fn main() {
                 .takes_value(true)
                 .required(false)
                 .multiple(true)
-                .value_delimiter(",")
-                .validator(validate_name_servers),
+                .value_delimiter(","),
         )
         .arg(
             Arg::with_name("NAME_SERVER_PORT")
@@ -86,7 +97,6 @@ async fn main() {
         .get_matches();
 
     let domain = command.value_of("DOMAIN").expect("domain expected");
-    let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
 
     let query_per_sec = command
         .value_of("RATE")
@@ -97,7 +107,8 @@ async fn main() {
     let rate = ThrottleRate::new(query_per_sec, Duration::from_secs(1));
     let pool = ThrottlePool::new(rate);
 
-    let resolver_config = ResolverConfig::from_parts(None, vec![], fetch_resolve_config(&command));
+    let resolver_config =
+        ResolverConfig::from_parts(None, vec![], fetch_resolve_config(&command).await);
 
     let resolver = TokioAsyncResolver::tokio(
         resolver_config,
@@ -109,12 +120,27 @@ async fn main() {
 
     let res = resolver.await.expect("Failed to connect to resolver");
 
-    let records = brute::brute_force_domain(domain, subdomains_file, pool, &res);
+    let records = if command.is_present("TRANSFER") {
+        if let Some(nameservers) = command.values_of("NAMES_SERVERS") {
+            let name_server_port = command
+                .value_of("NAME_SERVER_PORT")
+                .expect("Port expected")
+                .parse::<u16>()
+                .expect("Port expected to be a number");
+            let ns_ips = validate_name_servers(nameservers).await;
+            transfer::transfer_request(domain, &ns_ips, name_server_port).await
+        } else {
+            vec![]
+        }
+    } else {
+        let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
+        brute::brute_force_domain(domain, subdomains_file, pool, &res).await
+    };
 
     println!("*********************");
     println!("Results");
     println!("*********************");
-    for record in records.await {
+    for record in records {
         println!(
             "{}:{}:{}",
             record.name().to_ascii(),
@@ -131,13 +157,6 @@ fn display_rdata(rdata: &RData) -> String {
         RData::CNAME(name) => name.to_utf8(),
         _ => format!("{:?}", rdata),
     }
-}
-
-fn validate_name_servers(name_server: String) -> Result<(), String> {
-    name_server
-        .parse::<IpAddr>()
-        .map(|_| ())
-        .map_err(|_| format!("Invalid IP address {}", name_server))
 }
 
 fn validate_subdomain_file(file: String) -> Result<(), String> {
@@ -161,7 +180,7 @@ fn validate_name_server_port(port: String) -> Result<(), String> {
         .map_err(|_| format!("Invalid name server port: {}", port))
 }
 
-fn fetch_resolve_config(command: &ArgMatches) -> NameServerConfigGroup {
+async fn fetch_resolve_config(command: &ArgMatches<'_>) -> NameServerConfigGroup {
     let mut config = NameServerConfigGroup::new();
     if command.is_present("GOGGLE_NS") {
         NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::google())
@@ -179,9 +198,7 @@ fn fetch_resolve_config(command: &ArgMatches) -> NameServerConfigGroup {
             .parse::<u16>()
             .expect("Port expected to be a number");
         let ns_config = NameServerConfigGroup::from_ips_clear(
-            &nameservers
-                .map(|x| x.parse().unwrap())
-                .collect::<Vec<IpAddr>>(),
+            &validate_name_servers(nameservers).await,
             name_server_port,
         );
         NameServerConfigGroup::merge(&mut config, ns_config)
@@ -194,4 +211,42 @@ fn fetch_resolve_config(command: &ArgMatches) -> NameServerConfigGroup {
         NameServerConfigGroup::merge(&mut config, NameServerConfigGroup::google())
     }
     config
+}
+
+async fn validate_name_servers(ns_args: Values<'_>) -> Vec<IpAddr> {
+    let resolver = AsyncResolver::tokio_from_system_conf()
+        .await
+        .expect("Error creating system config resolver");
+    let x = stream::iter(ns_args)
+        .then(|maybe_ip| validate_name_server(maybe_ip, &resolver))
+        .collect::<Vec<Result<_, _>>>()
+        .await;
+    let (ips, errors): (Vec<_>, Vec<_>) = x.into_iter().partition(|x| x.is_ok());
+    errors
+        .into_iter()
+        .map(Result::unwrap_err)
+        .for_each(|e| println!("Error resolving name sever {}", e));
+    let ips = ips
+        .into_iter()
+        .map(Result::unwrap)
+        .flatten()
+        .collect::<Vec<_>>();
+    if ips.is_empty() {
+        panic!("No valid name servers found.")
+    }
+    println!("Name servers have been validated {:?}", ips);
+    ips
+}
+
+async fn validate_name_server(
+    ns_arg: &str,
+    res: &TokioAsyncResolver,
+) -> Result<Vec<IpAddr>, ResolveError> {
+    if let Ok(ip) = ns_arg.parse::<IpAddr>() {
+        Ok(vec![ip])
+    } else {
+        res.lookup_ip(ns_arg)
+            .await
+            .map(|ip_lookup| ip_lookup.iter().collect::<Vec<IpAddr>>())
+    }
 }

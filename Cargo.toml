@@ -7,9 +7,10 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33"
-tokio = { version = "0.2", features = ["macros" ] }
+tokio = { version = "0.2", features = ["macros", "net" ] }
 trust-dns-resolver="0.19" 
 trust-dns-proto="0.19" 
+trust-dns-client = { version = "*", default-features = false }
 futures = "0.3"
 stream_throttle = "0.3.1"
 rand = "0.7"
