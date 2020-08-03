@@ -12,7 +12,7 @@ use trust_dns_proto::{iocompat::AsyncIo02As03, TokioTime};
 use trust_dns_client::client::*;
 
 // Perform a Domain Transfer Request
-pub async fn transfer_request(domain: &str, name_servers: &Vec<IpAddr>, port: u16) -> Vec<Record> {
+pub async fn transfer_request(domain: &str, name_servers: &[IpAddr], port: u16) -> Vec<Record> {
     let mut results = vec![];
     for address in name_servers {
         let socket = SocketAddr::new(*address, port);
