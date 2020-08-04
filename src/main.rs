@@ -21,17 +21,21 @@ async fn main() {
         .author("Oliver Daff")
         .about("A DNS subdomain brute force")
         .arg(
+            Arg::with_name("OPERATION")
+                .help("Operation to perform.")
+                .required(true)
+                .takes_value(true)
+                .index(1)
+                .possible_values(&["brute", "axfr"])
+                .default_value("axfr")
+                .requires_if("brute", "SUBDOMAINS"),
+        )
+        .arg(
             Arg::with_name("DOMAIN")
                 .help("The domain to enumerate")
                 .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("TRANSFER")
-                .long("axfr")
-                .help("Perform a domain transfer request.")
-                .required(false)
-                .takes_value(false),
+                .takes_value(true)
+                .index(2),
         )
         .arg(
             Arg::with_name("SUBDOMAINS")
@@ -40,8 +44,7 @@ async fn main() {
                 .help("The subdomains file to enumerate")
                 .required(false)
                 .takes_value(true)
-                .validator(validate_subdomain_file)
-                .conflicts_with_all(&["TRANSFER"]),
+                .validator(validate_subdomain_file),
         )
         .arg(
             Arg::with_name("RATE")
@@ -96,6 +99,7 @@ async fn main() {
         )
         .get_matches();
 
+    let operation = command.value_of("OPERATION").expect("operation expected");
     let domain = command.value_of("DOMAIN").expect("domain expected");
 
     let query_per_sec = command
@@ -120,7 +124,7 @@ async fn main() {
 
     let res = resolver.await.expect("Failed to connect to resolver");
 
-    let records = if command.is_present("TRANSFER") {
+    let records = if operation == "axfr" {
         if let Some(nameservers) = command.values_of("NAMES_SERVERS") {
             let name_server_port = command
                 .value_of("NAME_SERVER_PORT")
@@ -132,9 +136,12 @@ async fn main() {
         } else {
             vec![]
         }
-    } else {
+    } else if operation == "brute" {
         let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
         brute::brute_force_domain(domain, subdomains_file, pool, &res).await
+    } else {
+        println!("Unkown operation: {}", operation);
+        vec![]
     };
 
     println!("*********************");
