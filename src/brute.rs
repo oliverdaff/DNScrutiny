@@ -13,6 +13,7 @@ pub async fn brute_force_domain(
     subdomains_file: &str,
     throttle_pool: ThrottlePool,
     resolver: &TokioAsyncResolver,
+    concurrency: usize,
 ) -> Vec<Record> {
     if let Ok(result) = is_wildcard_domain(domain, resolver).await {
         println!("Wild card resolution is enabled on this domain");
@@ -31,10 +32,13 @@ pub async fn brute_force_domain(
         .throttle(throttle_pool)
         .map_err(|e| format!("error {}", e))
         .and_then(|prefix| {
-            resolver
-                .lookup_ip(format!("{}.{}", prefix, domain))
-                .map_err(|e| format!("error: {}", e))
+            future::ok(
+                resolver
+                    .lookup_ip(format!("{}.{}", prefix, domain))
+                    .map_err(|e| format!("error: {}", e)),
+            )
         })
+        .try_buffer_unordered(concurrency)
         .filter(|x| future::ready(x.is_ok()))
         .map(|x| x.unwrap())
         .map(|x| x.as_lookup().clone());

@@ -57,6 +57,16 @@ async fn main() {
                 .validator(validate_rate),
         )
         .arg(
+            Arg::with_name("CONCURRENCY")
+                .short("c")
+                .long("concurrency")
+                .help("The number of concurrent requests")
+                .required(false)
+                .default_value("1000")
+                .takes_value(true)
+                .validator(validate_rate),
+        )
+        .arg(
             Arg::with_name("NAMES_SERVERS")
                 .short("n")
                 .long("names-servers")
@@ -101,6 +111,11 @@ async fn main() {
 
     let operation = command.value_of("OPERATION").expect("operation expected");
     let domain = command.value_of("DOMAIN").expect("domain expected");
+    let concurrency = command
+        .value_of("CONCURRENCY")
+        .expect("concurrency expected")
+        .parse::<usize>()
+        .unwrap();
 
     let query_per_sec = command
         .value_of("RATE")
@@ -132,13 +147,13 @@ async fn main() {
                 .parse::<u16>()
                 .expect("Port expected to be a number");
             let ns_ips = validate_name_servers(nameservers).await;
-            transfer::transfer_request(domain, &ns_ips, name_server_port).await
+            transfer::transfer_request(domain, &ns_ips, name_server_port, concurrency).await
         } else {
             vec![]
         }
     } else if operation == "brute" {
         let subdomains_file = command.value_of("SUBDOMAINS").expect("subdomains expected");
-        brute::brute_force_domain(domain, subdomains_file, pool, &res).await
+        brute::brute_force_domain(domain, subdomains_file, pool, &res, concurrency).await
     } else {
         println!("Unkown operation: {}", operation);
         vec![]
@@ -241,7 +256,6 @@ async fn validate_name_servers(ns_args: Values<'_>) -> Vec<IpAddr> {
     if ips.is_empty() {
         panic!("No valid name servers found.")
     }
-    println!("Name servers have been validated {:?}", ips);
     ips
 }
 
