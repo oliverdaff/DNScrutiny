@@ -36,14 +36,13 @@ pub async fn transfer_request(
                     .map_err(|_| format!("Failed to create name: {}", domain))
             }
         })
-        .and_then(|(mut client, name, domain)| {
+        .map_ok(|(mut client, name, domain)| {
             client
                 .query(name, DNSClass::IN, RecordType::AXFR)
                 .map_err(move |_| format!("axfr query failed: {}", domain))
         })
-        .map_ok(|x| future::ok(x))
         .try_buffer_unordered(concurrency)
-        .map_ok(|response| response.answers().iter().cloned().collect::<Vec<_>>())
+        .map_ok(|response| response.answers().to_vec())
         .collect::<Vec<_>>()
         .await
         .into_iter()
