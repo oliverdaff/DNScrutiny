@@ -271,3 +271,21 @@ async fn validate_name_server(
             .map(|ip_lookup| ip_lookup.iter().collect::<Vec<IpAddr>>())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_rdata_a_rec() {
+        let ip = "127.0.0.1".parse::<std::net::Ipv4Addr>().unwrap();
+        assert_eq!(display_rdata(&RData::A(ip)), format!("{}", ip))
+    } 
+
+    #[test]
+    fn test_display_rdata_aaaa_rec() {
+        let ip = "2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse::<std::net::Ipv6Addr>().unwrap();
+        assert_eq!(display_rdata(&RData::AAAA(ip)), format!("{}", ip))
+    } 
+
+}
