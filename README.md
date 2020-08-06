@@ -72,12 +72,10 @@ docker build -t dnscrutiny .
 ```
 
 Run the container using:
-*    `-i` flag to map stdin to into the container.
 *    `--rm` to remove the container on exit
-*   `2>/dev/null` sterr redirection to hide failed connection detail.
 
 ```
-docker run -i --rm dnscrutiny <args>
+docker run--rm dnscrutiny <args>
 ```
 
 ## Tests
