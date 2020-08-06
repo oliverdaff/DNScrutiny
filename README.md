@@ -1,5 +1,9 @@
 # DNScrutiny [![CircleCI](https://circleci.com/gh/oliverdaff/hprobe.svg?style=shield)](https://circleci.com/gh/oliverdaff/DNScrutiny) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/oliverdaff/DNScrutiny?style=plastic)](https://github.com/oliverdaff/DNScrutiny/releases/latest)
 
+Carries out DNS information gathering:
+    * Performs a domain transfer against the name servers
+    * Performs subdomain enumeration for the domain from the subdomain file.
+
 ## Installation
 
 ### Cargo
