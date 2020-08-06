@@ -1,9 +1,9 @@
 # DNScrutiny [![CircleCI](https://circleci.com/gh/oliverdaff/hprobe.svg?style=shield)](https://circleci.com/gh/oliverdaff/DNScrutiny) [![GitHub release (latest by date)](https://img.shields.io/github/v/release/oliverdaff/DNScrutiny?style=plastic)](https://github.com/oliverdaff/DNScrutiny/releases/latest)
 
-Carries out DNS information gathering:
+Carries out DNS recon gathering:
 
-    *   Performs a domain transfer against the name servers
-    *   Performs subdomain enumeration for the domain from the subdomain file.
+*   Performs a domain transfer against the name servers
+*   Performs subdomain enumeration for the domain from the subdomain file.
 
 ## Installation
 
@@ -57,10 +57,33 @@ ARGS:
     <DOMAIN>       The domain to enumerate
 ```
 
+Name server flags a accumulative so using `--cloudflare-ns --google-ns --quad9-ns` will use all three name servers for resolution.
 
 ## Docker
+Build the docker container by first using `cargo cross` to build the static binaries.
+
+```shell
+cargo install cross
+cross build --target x86_64-unknown-linux-musl --release
+```
+
+Then build the docker container
+
+```
+docker build -t dnscrutiny .
+```
+
+Run the container using:
+*    `-i` flag to map stdin to into the container.
+*    `--rm` to remove the container on exit
+*   `2>/dev/null` sterr redirection to hide failed connection detail.
+
+```
+docker run -i --rm dnscrutiny <args>
+```
 
 ## Tests
+The tests can be invoked with `cargo test`
 
 ## Credits
 This project was inspired by [DNSRecon](https://github.com/darkoperator/dnsrecon).
