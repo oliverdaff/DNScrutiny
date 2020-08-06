@@ -6,10 +6,10 @@ Carries out DNS recon gathering:
 *   Performs subdomain enumeration for the domain from the subdomain file.
 
 ## Installation
+The latest release binaries can be downloaded from Github (Coming soon).
 
 ### Cargo
 
-## Usage
 Install latest from GitHub using Cargo.
 
 ```bash
@@ -18,14 +18,12 @@ cargo test
 cargo install --path .
 ```
 
-
-### Basic
+## Usage
 
 Run a DNS name transfer request
 ```
 dnscrutiny axfr zonetransfer.me -n nsztm1.digi.ninja
 ```
-
 
 Run a DNS subdomain enumeration for the domain.
 ```
