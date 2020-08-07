@@ -177,6 +177,7 @@ fn display_rdata(rdata: &RData) -> String {
         RData::A(ip) => format!("{}", ip),
         RData::AAAA(ip) => format!("{}", ip),
         RData::CNAME(name) => name.to_utf8(),
+        RData::ANAME(name) => name.to_utf8(),
         _ => format!("{:?}", rdata),
     }
 }
@@ -275,6 +276,8 @@ async fn validate_name_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
+    use trust_dns_client::rr::Name;
 
     #[test]
     fn test_display_rdata_a_rec() {
@@ -288,5 +291,12 @@ mod tests {
             .parse::<std::net::Ipv6Addr>()
             .unwrap();
         assert_eq!(display_rdata(&RData::AAAA(ip)), format!("{}", ip))
+    }
+
+    #[test]
+    fn test_display_rdata_aname_rec() {
+        let name = Name::from_str("localhost").unwrap();
+        let name_format = format!("{}", &name.to_utf8());
+        assert_eq!(display_rdata(&RData::ANAME(name)), name_format);
     }
 }
