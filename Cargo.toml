@@ -14,3 +14,4 @@ trust-dns-client = { version = "*", default-features = false }
 futures = "0.3"
 stream_throttle = "0.3.1"
 rand = "0.7"
+base64 = "0.12"

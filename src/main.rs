@@ -1,6 +1,7 @@
 mod brute;
 mod transfer;
 
+use base64::encode;
 use clap::{App, Arg, ArgMatches, Values};
 use futures::prelude::*;
 use futures::stream;
@@ -8,6 +9,7 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::time::Duration;
 use stream_throttle::{ThrottlePool, ThrottleRate};
+use trust_dns_client::rr::rdata::caa::Value;
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::NameServerConfigGroup;
 use trust_dns_resolver::config::*;
@@ -178,7 +180,30 @@ fn display_rdata(rdata: &RData) -> String {
         RData::AAAA(ip) => format!("{}", ip),
         RData::CNAME(name) => name.to_utf8(),
         RData::ANAME(name) => name.to_utf8(),
+        RData::CAA(caa) => format!("{} {}", caa.tag().as_str(), display_rr_value(caa.value())),
         _ => format!("{:?}", rdata),
+    }
+}
+
+fn display_rr_value(value: &Value) -> String {
+    match value {
+        Value::Issuer(None, params) if params.is_empty() => "".to_string(),
+        Value::Issuer(None, params) => params
+            .iter()
+            .map(|v| format!("{}:{}", v.key(), v.value()))
+            .collect::<Vec<_>>()
+            .join(" "),
+        Value::Issuer(Some(name), params) if params.is_empty() => format!("{}", name),
+        Value::Issuer(Some(name), params) => {
+            let value_fmt = params
+                .iter()
+                .map(|v| format!("{}:{}", v.key(), v.value()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("{} {}", name, value_fmt)
+        }
+        Value::Url(url) => url.to_string(),
+        Value::Unknown(unknown) => encode(unknown),
     }
 }
 
@@ -278,6 +303,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use trust_dns_client::rr::Name;
+    use trust_dns_proto::rr::rdata::caa::CAA;
 
     #[test]
     fn test_display_rdata_a_rec() {
@@ -298,5 +324,12 @@ mod tests {
         let name = Name::from_str("localhost").unwrap();
         let name_format = format!("{}", &name.to_utf8());
         assert_eq!(display_rdata(&RData::ANAME(name)), name_format);
+    }
+
+    #[test]
+    fn test_display_rdata_caa_rec_issue() {
+        let name = Name::from_str("localhost").unwrap();
+        let caa = CAA::new_issue(false, Some(name), vec![]);
+        assert_eq!(display_rdata(&RData::CAA(caa)), "issue localhost");
     }
 }
