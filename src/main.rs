@@ -1,7 +1,7 @@
 mod brute;
 mod transfer;
 
-use base64::encode;
+use base64;
 use clap::{App, Arg, ArgMatches, Values};
 use futures::prelude::*;
 use futures::stream;
@@ -188,15 +188,19 @@ fn display_rdata(rdata: &RData) -> String {
             naptr.preference(),
             std::str::from_utf8(naptr.flags())
                 .map(|x| x.to_string())
-                .unwrap_or_else(|_| encode(naptr.flags())),
+                .unwrap_or_else(|_| base64::encode(naptr.flags())),
             std::str::from_utf8(naptr.services())
                 .map(|x| x.to_string())
-                .unwrap_or_else(|_| encode(naptr.services())),
+                .unwrap_or_else(|_| base64::encode(naptr.services())),
             std::str::from_utf8(naptr.regexp())
                 .map(|x| x.to_string())
-                .unwrap_or_else(|_| encode(naptr.regexp())),
+                .unwrap_or_else(|_| base64::encode(naptr.regexp())),
             naptr.replacement().to_ascii()
         ),
+        RData::NULL(null) => null
+            .anything()
+            .map(|x| base64::encode(x))
+            .unwrap_or_else(|| "".to_string()),
         _ => format!("{:?}", rdata),
     }
 }
@@ -219,7 +223,7 @@ fn display_rr_value(value: &Value) -> String {
             format!("{} {}", name, value_fmt)
         }
         Value::Url(url) => url.to_string(),
-        Value::Unknown(unknown) => encode(unknown),
+        Value::Unknown(unknown) => base64::encode(unknown),
     }
 }
 
@@ -367,5 +371,12 @@ mod tests {
             display_rdata(&RData::NAPTR(naptr)),
             "0 1 flags services regexp localhost"
         );
+    }
+
+    #[test]
+    fn test_display_rdata_null_rec() {
+        let data = "test".to_string().into_bytes();
+        let null_rec = rdata::NULL::with(data.clone());
+        assert_eq!(display_rdata(&RData::NULL(null_rec)), base64::encode(data))
     }
 }
