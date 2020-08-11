@@ -182,6 +182,12 @@ fn display_rdata(rdata: &RData) -> String {
         RData::ANAME(name) => name.to_utf8(),
         RData::CAA(caa) => format!("{} {}", caa.tag().as_str(), display_rr_value(caa.value())),
         RData::MX(mx) => format!("{} {}", mx.preference(), mx.exchange().to_ascii()),
+        RData::NAPTR(naptr) => format!("{} {} {} {} {} {}", naptr.order(), naptr.preference(), 
+            std::str::from_utf8(naptr.flags()).map(|x|x.to_string()).unwrap_or_else(|_| encode(naptr.flags())),
+            std::str::from_utf8(naptr.services()).map(|x|x.to_string()).unwrap_or_else(|_| encode(naptr.services())),
+            std::str::from_utf8(naptr.regexp()).map(|x|x.to_string()).unwrap_or_else(|_| encode(naptr.regexp())),
+            naptr.replacement().to_ascii()
+         ),
         _ => format!("{:?}", rdata),
     }
 }
@@ -339,5 +345,15 @@ mod tests {
         let name = Name::from_str("localhost").unwrap();
         let mx = rdata::MX::new(0, name);
         assert_eq!(display_rdata(&RData::MX(mx)), "0 localhost");
+    }
+
+    #[test]
+    fn test_display_rdata_naptr_rec() {
+        let name = Name::from_str("localhost").unwrap();
+        let flags = String::from("flags").into_bytes().into_boxed_slice();
+        let services = String::from("services").into_bytes().into_boxed_slice();
+        let regexp = String::from("regexp").into_bytes().into_boxed_slice();
+        let naptr = rdata::NAPTR::new(0, 1, flags, services, regexp, name);
+        assert_eq!(display_rdata(&RData::NAPTR(naptr)), "0 1 flags services regexp localhost");
     }
 }
