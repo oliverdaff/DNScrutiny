@@ -181,6 +181,7 @@ fn display_rdata(rdata: &RData) -> String {
         RData::CNAME(name) => name.to_utf8(),
         RData::ANAME(name) => name.to_utf8(),
         RData::CAA(caa) => format!("{} {}", caa.tag().as_str(), display_rr_value(caa.value())),
+        RData::MX(mx) => format!("{} {}", mx.preference(), mx.exchange().to_ascii()),
         _ => format!("{:?}", rdata),
     }
 }
@@ -303,7 +304,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use trust_dns_client::rr::Name;
-    use trust_dns_proto::rr::rdata::caa::CAA;
+    use trust_dns_proto::rr::rdata;
 
     #[test]
     fn test_display_rdata_a_rec() {
@@ -329,7 +330,14 @@ mod tests {
     #[test]
     fn test_display_rdata_caa_rec_issue() {
         let name = Name::from_str("localhost").unwrap();
-        let caa = CAA::new_issue(false, Some(name), vec![]);
+        let caa = rdata::caa::CAA::new_issue(false, Some(name), vec![]);
         assert_eq!(display_rdata(&RData::CAA(caa)), "issue localhost");
+    }
+
+    #[test]
+    fn test_display_rdata_mx_rec() {
+        let name = Name::from_str("localhost").unwrap();
+        let mx = rdata::MX::new(0, name);
+        assert_eq!(display_rdata(&RData::MX(mx)), "0 localhost");
     }
 }
