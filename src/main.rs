@@ -220,6 +220,16 @@ fn display_rdata(rdata: &RData) -> String {
             srv.port(),
             srv.target().to_ascii(),
         ),
+        RData::TXT(txt) => txt
+            .txt_data()
+            .iter()
+            .map(|x| {
+                std::str::from_utf8(&*(x))
+                    .map(|x| x.to_string())
+                    .unwrap_or_else(|_| base64::encode(&*x))
+            })
+            .collect::<Vec<_>>()
+            .join(","),
         _ => format!("{:?}", rdata),
     }
 }
@@ -434,5 +444,12 @@ mod tests {
         let name = Name::from_str("name").expect("Name should be valid");
         let srv = rdata::SRV::new(0, 1, 2, name);
         assert_eq!(display_rdata(&RData::SRV(srv)), "0 1 2 name");
+    }
+
+    #[test]
+    fn test_display_rdata_txt_rec() {
+        let txt_values = vec!["test".to_string(), "testing".to_string()];
+        let txt = rdata::TXT::new(txt_values);
+        assert_eq!(display_rdata(&RData::TXT(txt)), "test,testing");
     }
 }
