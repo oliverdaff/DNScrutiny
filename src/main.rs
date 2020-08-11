@@ -201,6 +201,7 @@ fn display_rdata(rdata: &RData) -> String {
             .map(base64::encode)
             .unwrap_or_else(|| "".to_string()),
         RData::NS(name) => name.to_ascii(),
+        RData::PTR(name) => name.to_ascii(),
         RData::OPENPGPKEY(key) => base64::encode(key.public_key()),
         _ => format!("{:?}", rdata),
     }
@@ -385,6 +386,12 @@ mod tests {
     fn test_display_rdata_ns_rec() {
         let name = Name::from_str("localhost").expect("Name should be valid");
         assert_eq!(display_rdata(&RData::NS(name)), "localhost");
+    }
+
+    #[test]
+    fn test_display_rdata_ptr_rec() {
+        let name = Name::from_str("localhost").expect("Name should be valid");
+        assert_eq!(display_rdata(&RData::PTR(name)), "localhost");
     }
 
     #[test]
