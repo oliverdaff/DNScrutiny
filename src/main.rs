@@ -201,6 +201,7 @@ fn display_rdata(rdata: &RData) -> String {
             .anything()
             .map(|x| base64::encode(x))
             .unwrap_or_else(|| "".to_string()),
+        RData::NS(name) => name.to_ascii(),
         _ => format!("{:?}", rdata),
     }
 }
@@ -378,5 +379,11 @@ mod tests {
         let data = "test".to_string().into_bytes();
         let null_rec = rdata::NULL::with(data.clone());
         assert_eq!(display_rdata(&RData::NULL(null_rec)), base64::encode(data))
+    }
+
+    #[test]
+    fn test_display_rdata_ns_rec() {
+        let name = Name::from_str("localhost").expect("Name should be valid");
+        assert_eq!(display_rdata(&RData::NS(name)), "localhost");
     }
 }
