@@ -9,6 +9,7 @@ use std::path::Path;
 use std::time::Duration;
 use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_client::rr::rdata::caa::Value;
+use trust_dns_proto::rr::rdata;
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::NameServerConfigGroup;
 use trust_dns_resolver::config::*;
@@ -196,10 +197,7 @@ fn display_rdata(rdata: &RData) -> String {
                 .unwrap_or_else(|_| base64::encode(naptr.regexp())),
             naptr.replacement().to_ascii()
         ),
-        RData::NULL(null) => null
-            .anything()
-            .map(base64::encode)
-            .unwrap_or_else(|| "".to_string()),
+        RData::NULL(null) => displary_rr_null(null),
         RData::NS(name) => name.to_ascii(),
         RData::PTR(name) => name.to_ascii(),
         RData::OPENPGPKEY(key) => base64::encode(key.public_key()),
@@ -230,8 +228,19 @@ fn display_rdata(rdata: &RData) -> String {
             })
             .collect::<Vec<_>>()
             .join(","),
+        RData::Unknown { code, rdata } => format!("{} {}", code, displary_rr_null(rdata)),
         _ => format!("{:?}", rdata),
     }
+}
+
+fn displary_rr_null(null: &rdata::NULL) -> String {
+    null.anything()
+        .map(|x| {
+            std::str::from_utf8(x)
+                .map(|x| x.to_string())
+                .unwrap_or_else(|_| base64::encode(x))
+        })
+        .unwrap_or_else(|| "".to_string())
 }
 
 fn display_rr_value(value: &Value) -> String {
@@ -406,7 +415,7 @@ mod tests {
     fn test_display_rdata_null_rec() {
         let data = "test".to_string().into_bytes();
         let null_rec = rdata::NULL::with(data.clone());
-        assert_eq!(display_rdata(&RData::NULL(null_rec)), base64::encode(data))
+        assert_eq!(display_rdata(&RData::NULL(null_rec)), "test")
     }
 
     #[test]
@@ -451,5 +460,16 @@ mod tests {
         let txt_values = vec!["test".to_string(), "testing".to_string()];
         let txt = rdata::TXT::new(txt_values);
         assert_eq!(display_rdata(&RData::TXT(txt)), "test,testing");
+    }
+
+    #[test]
+    fn test_display_rdata_unknown_rec() {
+        let data = "test".to_string().into_bytes();
+        let null_rec = rdata::NULL::with(data.clone());
+        let unknown = RData::Unknown {
+            code: 10,
+            rdata: null_rec,
+        };
+        assert_eq!(display_rdata(&unknown), "10 test");
     }
 }
