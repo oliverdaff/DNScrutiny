@@ -213,6 +213,13 @@ fn display_rdata(rdata: &RData) -> String {
             soa.expire(),
             soa.minimum()
         ),
+        RData::SRV(srv) => format!(
+            "{} {} {} {}",
+            srv.priority(),
+            srv.weight(),
+            srv.port(),
+            srv.target().to_ascii(),
+        ),
         _ => format!("{:?}", rdata),
     }
 }
@@ -420,5 +427,12 @@ mod tests {
         let rname = Name::from_str("rname").expect("Name should be valid");
         let soa = rdata::SOA::new(mname, rname, 0, 1, 2, 3, 4);
         assert_eq!(display_rdata(&RData::SOA(soa)), "mname rname 0 1 2 3 4");
+    }
+
+    #[test]
+    fn test_display_rdata_srv_rec() {
+        let name = Name::from_str("name").expect("Name should be valid");
+        let srv = rdata::SRV::new(0, 1, 2, name);
+        assert_eq!(display_rdata(&RData::SRV(srv)), "0 1 2 name");
     }
 }
