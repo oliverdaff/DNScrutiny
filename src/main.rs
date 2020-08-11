@@ -203,6 +203,16 @@ fn display_rdata(rdata: &RData) -> String {
         RData::NS(name) => name.to_ascii(),
         RData::PTR(name) => name.to_ascii(),
         RData::OPENPGPKEY(key) => base64::encode(key.public_key()),
+        RData::SOA(soa) => format!(
+            "{} {} {} {} {} {} {}",
+            soa.mname().to_ascii(),
+            soa.rname().to_ascii(),
+            soa.serial(),
+            soa.refresh(),
+            soa.retry(),
+            soa.expire(),
+            soa.minimum()
+        ),
         _ => format!("{:?}", rdata),
     }
 }
@@ -402,5 +412,13 @@ mod tests {
             display_rdata(&RData::OPENPGPKEY(opengpkey)),
             base64::encode(key)
         );
+    }
+
+    #[test]
+    fn test_display_rdata_soa_rec() {
+        let mname = Name::from_str("mname").expect("Name should be valid");
+        let rname = Name::from_str("rname").expect("Name should be valid");
+        let soa = rdata::SOA::new(mname, rname, 0, 1, 2, 3, 4);
+        assert_eq!(display_rdata(&RData::SOA(soa)), "mname rname 0 1 2 3 4");
     }
 }
