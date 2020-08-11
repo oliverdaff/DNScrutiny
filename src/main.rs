@@ -1,7 +1,6 @@
 mod brute;
 mod transfer;
 
-use base64;
 use clap::{App, Arg, ArgMatches, Values};
 use futures::prelude::*;
 use futures::stream;
@@ -199,7 +198,7 @@ fn display_rdata(rdata: &RData) -> String {
         ),
         RData::NULL(null) => null
             .anything()
-            .map(|x| base64::encode(x))
+            .map(base64::encode)
             .unwrap_or_else(|| "".to_string()),
         RData::NS(name) => name.to_ascii(),
         _ => format!("{:?}", rdata),
