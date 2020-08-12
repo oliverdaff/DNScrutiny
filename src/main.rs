@@ -117,7 +117,7 @@ async fn main() {
         "WRN".yellow()
     );
     println!(
-        "[{}] Developers assume no libility and are not responsible for any misuse or damage.",
+        "[{}] Developers assume no liability and are not responsible for any misuse or damage.",
         "WRN".yellow()
     );
 
