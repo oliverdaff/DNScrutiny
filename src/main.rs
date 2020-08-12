@@ -2,6 +2,7 @@ mod brute;
 mod transfer;
 
 use clap::{App, Arg, ArgMatches, Values};
+use colored::*;
 use futures::prelude::*;
 use futures::stream;
 use std::net::IpAddr;
@@ -110,6 +111,15 @@ async fn main() {
                 .takes_value(false),
         )
         .get_matches();
+
+    println!(
+        "[{}] Use with caution.  You are responsible for your actions.",
+        "WRN".yellow()
+    );
+    println!(
+        "[{}] Developers assume no libility and are not responsible for any misuse or damage.",
+        "WRN".yellow()
+    );
 
     let operation = command.value_of("OPERATION").expect("operation expected");
     let domain = command.value_of("DOMAIN").expect("domain expected");
