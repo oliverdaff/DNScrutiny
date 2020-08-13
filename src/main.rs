@@ -1,5 +1,5 @@
 mod brute;
-mod transfer;
+mod resolver;
 
 use clap::{App, Arg, ArgMatches, Values};
 use colored::*;
@@ -10,6 +10,8 @@ use std::path::Path;
 use std::time::Duration;
 use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_client::rr::rdata::caa::Value;
+use trust_dns_client::rr::rdata::DNSSECRecordType;
+use trust_dns_client::rr::RecordType;
 use trust_dns_proto::rr::rdata;
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::NameServerConfigGroup;
@@ -29,7 +31,7 @@ async fn main() {
                 .required(true)
                 .takes_value(true)
                 .index(1)
-                .possible_values(&["brute", "axfr"])
+                .possible_values(&["brute", "axfr", "dnssec"])
                 .default_value("axfr")
                 .requires_if("brute", "SUBDOMAINS"),
         )
@@ -159,7 +161,33 @@ async fn main() {
                 .parse::<u16>()
                 .expect("Port expected to be a number");
             let ns_ips = validate_name_servers(nameservers).await;
-            transfer::transfer_request(domain, &ns_ips, name_server_port, concurrency).await
+            resolver::query(
+                domain,
+                &ns_ips,
+                name_server_port,
+                concurrency,
+                RecordType::AXFR,
+            )
+            .await
+        } else {
+            vec![]
+        }
+    } else if operation == "dnssec" {
+        if let Some(nameservers) = command.values_of("NAMES_SERVERS") {
+            let name_server_port = command
+                .value_of("NAME_SERVER_PORT")
+                .expect("Port expected")
+                .parse::<u16>()
+                .expect("Port expected to be a number");
+            let ns_ips = validate_name_servers(nameservers).await;
+            resolver::query_udp(
+                domain,
+                &ns_ips,
+                name_server_port,
+                concurrency,
+                RecordType::DNSSEC(DNSSECRecordType::DNSKEY),
+            )
+            .await
         } else {
             vec![]
         }
@@ -239,6 +267,7 @@ fn display_rdata(rdata: &RData) -> String {
             .collect::<Vec<_>>()
             .join(","),
         RData::Unknown { code, rdata } => format!("{} {}", code, displary_rr_null(rdata)),
+        RData::DNSSEC(data) => format!("{:?}", data),
         _ => format!("{:?}", rdata),
     }
 }
