@@ -42,7 +42,7 @@ pub async fn query(
         .map_ok(|(mut client, name, domain)| {
             client
                 .query(name, DNSClass::IN, record_type)
-                .map_err(move |_| format!("axfr query failed: {}", domain))
+                .map_err(move |_| format!("{} query failed: {}", record_type, domain))
         })
         .try_buffer_unordered(concurrency)
         .map_ok(|response| response.answers().to_vec())
@@ -88,7 +88,7 @@ pub async fn query_udp(
         .map_ok(|(mut client, name, domain)| {
             client
                 .query(name, DNSClass::IN, record_type)
-                .map_err(move |_| format!("axfr query failed: {}", domain))
+                .map_err(move |_| format!("{} query failed: {}", record_type, domain))
         })
         .try_buffer_unordered(concurrency)
         .map_ok(|response| response.answers().to_vec())
