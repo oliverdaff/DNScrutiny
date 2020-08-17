@@ -309,6 +309,23 @@ fn displary_rr_dnssecrdata(dnssec: &DNSSECRData) -> String {
                 .join(",");
             format!("{} {}", ns.next_domain_name().to_ascii(), type_bms)
         }
+        DNSSECRData::NSEC3(nsec3) => {
+            let type_bms = nsec3
+                .type_bit_maps()
+                .iter()
+                .map(|x| format!("{}", x))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{:?} {} {} {} {} {}",
+                nsec3.hash_algorithm(),
+                nsec3.opt_out(),
+                nsec3.iterations(),
+                base64::encode(nsec3.salt()),
+                base64::encode(nsec3.next_hashed_owner_name()),
+                type_bms
+            )
+        }
         _ => format!("{:?}", dnssec),
     }
 }
