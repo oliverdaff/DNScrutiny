@@ -326,6 +326,13 @@ fn displary_rr_dnssecrdata(dnssec: &DNSSECRData) -> String {
                 type_bms
             )
         }
+        DNSSECRData::NSEC3PARAM(nsec3param) => format!(
+            "{:?} {} {} {}",
+            nsec3param.hash_algorithm(),
+            nsec3param.opt_out(),
+            nsec3param.iterations(),
+            base64::encode(nsec3param.salt())
+        ),
         _ => format!("{:?}", dnssec),
     }
 }
