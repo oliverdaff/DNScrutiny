@@ -12,6 +12,7 @@ use stream_throttle::{ThrottlePool, ThrottleRate};
 use trust_dns_client::rr::rdata::caa::Value;
 use trust_dns_client::rr::rdata::DNSSECRecordType;
 use trust_dns_client::rr::RecordType;
+use trust_dns_proto::rr::dnssec::rdata::DNSSECRData;
 use trust_dns_proto::rr::rdata;
 use trust_dns_proto::rr::record_data::RData;
 use trust_dns_resolver::config::NameServerConfigGroup;
@@ -267,8 +268,48 @@ fn display_rdata(rdata: &RData) -> String {
             .collect::<Vec<_>>()
             .join(","),
         RData::Unknown { code, rdata } => format!("{} {}", code, displary_rr_null(rdata)),
-        RData::DNSSEC(data) => format!("{:?}", data),
+        RData::DNSSEC(data) => displary_rr_dnssecrdata(data),
         _ => format!("{:?}", rdata),
+    }
+}
+
+fn displary_rr_dnssecrdata(dnssec: &DNSSECRData) -> String {
+    match dnssec {
+        DNSSECRData::DNSKEY(key) => format!(
+            "{} {} {} {} {}",
+            key.zone_key(),
+            key.secure_entry_point(),
+            key.revoke(),
+            key.algorithm(),
+            base64::encode(key.public_key())
+        ),
+        DNSSECRData::DS(ds) => format!(
+            "{} {} {:?} {}",
+            ds.key_tag(),
+            ds.algorithm(),
+            ds.digest_type(),
+            base64::encode(ds.digest())
+        ),
+        DNSSECRData::KEY(key) => format!(
+            "{:?} {:?} {:?} {} {:?} {} {}",
+            key.key_trust(),
+            key.key_usage(),
+            key.signatory(),
+            key.revoke(),
+            key.protocol(),
+            key.algorithm(),
+            base64::encode(key.public_key())
+        ),
+        DNSSECRData::NSEC(ns) => {
+            let type_bms = ns
+                .type_bit_maps()
+                .iter()
+                .map(|x| format!("{}", x))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{} {}", ns.next_domain_name().to_ascii(), type_bms)
+        }
+        _ => format!("{:?}", dnssec),
     }
 }
 
